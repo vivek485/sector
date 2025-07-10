@@ -16,12 +16,12 @@ from contextlib import contextmanager
 from asyncio import Semaphore
 from aiohttp import TCPConnector
 import nest_asyncio
-from sectordata import auto,niftybank,energy,finance,fmcg,it,media,metal,pharma,psu,health,consumer,oil
+from sectordata import auto,niftybank,energy,finance,fmcg,it,media,metal,pharma,psu,health,consumer,oil,next50,niftymidcap
 
 from asyncio import Semaphore
 st.set_page_config(layout="wide")
 st.title("sector Scanner")
-sec = ['auto','niftybank','energy','finance','fmcg','it','media','metal','pharma','psu','health','consumer','oil']
+sec = ['auto','niftybank','energy','finance','fmcg','it','media','metal','pharma','psu','health','consumer','oil','next50','niftymidcap']
 selectsec = st.selectbox('sector',options=sec)
 
 if selectsec == 'auto':
@@ -52,6 +52,10 @@ if selectsec == 'consumer':
     s=consumer
 if selectsec == 'oil':
     s=oil
+if selectsec == 'next50':
+    s=next50
+if selectsec == 'niftymidcap':
+    s=niftymidcap
 
 # Configuration
 CONFIG = {
