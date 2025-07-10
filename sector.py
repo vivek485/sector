@@ -228,6 +228,36 @@ async def getdata(session, stock):
                 final_df.set_index('datetime1', inplace=True)
                 final_df.drop(columns=['datetime'], inplace=True)
 
+                # Calculate net volume for each day
+                final_df['date'] = final_df.index.date
+                final_df['time'] = final_df.index.time
+                
+                # Initialize net volume column
+                final_df['net_volume'] = final_df['Volume']
+                
+                # For each day, calculate cumulative volume starting from 9:15
+                for date in final_df['date'].unique():
+                    day_mask = final_df['date'] == date
+                    day_data = final_df[day_mask].copy()
+                    
+                    # Find 9:15 AM candle
+                    nine_fifteen_mask = day_data['time'] == pd.Timestamp('09:15:00').time()
+                    nine_fifteen_candles = day_data[nine_fifteen_mask]
+                    
+                    if len(nine_fifteen_candles) > 0:
+                        # Get the first 9:15 candle index
+                        start_idx = nine_fifteen_candles.index[0]
+                        
+                        # Calculate cumulative volume from 9:15 onwards for this day
+                        day_data.loc[day_data.index >= start_idx, 'net_volume'] = \
+                            day_data.loc[day_data.index >= start_idx, 'Volume'].cumsum()
+                        
+                        # Update the main dataframe
+                        final_df.loc[day_mask, 'net_volume'] = day_data['net_volume']
+
+                # Drop temporary columns
+                final_df.drop(['date', 'time'], axis=1, inplace=True)
+
                 # Technical indicators
                 final_df['ema20'] = ta.trend.ema_indicator(final_df['Close'], window=25)
                 final_df['atr'] = ta.volatility.average_true_range(final_df['High'], final_df['Low'], final_df['Close'], window=25)
@@ -262,6 +292,8 @@ async def getdata(session, stock):
                 previoushigh = prev_date_df['High'].max()
                 final_df['prhigh'] = previoushigh
                 final_df['prlow'] = previouslow
+                final_df['prevclose'] = final_df['Close'].shift(1)
+                
 
                 # Get today's data
                 today = pd.Timestamp.now(ist_timezone).date()
@@ -306,23 +338,39 @@ if st.button("Get Signals"):
         # Display results
         col1, col2 = st.columns(2)
         
+        buy_stocks = []
+        sell_stocks = []
+
+        for stock_data in results:
+            if stock_data is not None:
+                # Use the last row for the latest values
+                last_row = stock_data.iloc[-1]
+                prevclose = last_row['prevclose']
+                prhigh = last_row['prhigh']
+                prlow = last_row['prlow']
+                symbol = last_row['symbol']
+
+                if prevclose > prhigh:
+                    buy_stocks.append((stock_data, symbol))
+                elif prevclose < prlow:
+                    sell_stocks.append((stock_data, symbol))
+
+        # Plot only buy stocks
         with col1:
-            st.subheader("Signals")
-            
-            
+            st.subheader("Buy Signals")
+            for stock_data, symbol in buy_stocks:
+                fig = plot_stock_chart(stock_data, symbol)
+                st.plotly_chart(fig, use_container_width=True)
+
+        # Plot only sell stocks
         with col2:
             st.subheader("Sell Signals")
-            
-        
-        # Plot charts for stocks with signals
-        if s:
-            signal_stocks = s
-            for stock_data in results:
-                if stock_data is not None and stock_data['symbol'].iloc[0] in signal_stocks:
-                    fig = plot_stock_chart(stock_data, stock_data['symbol'].iloc[0])
-                    st.plotly_chart(fig, use_container_width=True)
+            for stock_data, symbol in sell_stocks:
+                fig = plot_stock_chart(stock_data, symbol)
+                st.plotly_chart(fig, use_container_width=True)
 
-        else:
+        # Show info if no signals found
+        if not buy_stocks and not sell_stocks:
             st.info("No signals found for current session")
 
 st.sidebar.markdown("---")
