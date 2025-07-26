@@ -16,12 +16,12 @@ from contextlib import contextmanager
 from asyncio import Semaphore
 from aiohttp import TCPConnector
 import nest_asyncio
-from sectordata import auto,niftybank,energy,finance,fmcg,it,media,metal,pharma,psu,health,consumer,oil,next50,niftymidcap
+from sectordata import auto,niftybank,energy,finance,fmcg,it,media,metal,pharma,psu,health,consumer,oil,next50,niftymidcap,fno
 
 from asyncio import Semaphore
 st.set_page_config(layout="wide")
 st.title("sector Scanner")
-sec = ['auto','niftybank','energy','finance','fmcg','it','media','metal','pharma','psu','health','consumer','oil','next50','niftymidcap']
+sec = ['auto','niftybank','energy','finance','fmcg','it','media','metal','pharma','psu','health','consumer','oil','next50','niftymidcap','fno']
 selectsec = st.selectbox('sector',options=sec)
 
 if selectsec == 'auto':
@@ -56,6 +56,8 @@ if selectsec == 'next50':
     s=next50
 if selectsec == 'niftymidcap':
     s=niftymidcap
+if selectsec == 'fno':
+    s=fno
 
 # Configuration
 CONFIG = {
@@ -124,6 +126,11 @@ def plot_stock_chart(df, symbol):
                                 name='Price'),
                   row=1, col=1)
 
+    # Add vertical white dashed line at 9:15 candle for each day
+    nine_fifteen_times = [idx for idx in df.index if hasattr(idx, 'time') and idx.time() == pd.Timestamp('09:15:00').time()]
+    for x_val in nine_fifteen_times:
+        fig.add_vline(x=x_val, line_width=1, line_dash="dot", line_color="white", row=1, col=1)
+
     # Add previous day's high and low lines
    
 
@@ -183,6 +190,23 @@ def plot_stock_chart(df, symbol):
     #                     marker_color=colors),
     #               row=2, col=1)
 
+    # Plot net volume as bar chart in row 2
+    if 'net volume' in df.columns:
+        colors = ['red' if row['Close'] < row['Open'] else 'green' for _, row in df.iterrows()]
+        fig.add_trace(go.Bar(x=df.index, 
+                            y=df['net volume'],
+                            name='Net Volume',
+                            marker_color=colors,
+                            opacity=0.5),
+                      row=2, col=1)
+        # Add SMA 20 for net volume
+        netvol_sma20 = df['net volume'].rolling(window=20).mean()
+        fig.add_trace(go.Scatter(x=df.index, y=netvol_sma20,
+                                 mode='lines',
+                                 line=dict(color='white', width=0.5, dash='dot'),
+                                 name='Net Volume SMA 20'),
+                      row=2, col=1)
+
     fig.update_layout(
         title=f'{symbol} Price Chart',
         yaxis_title='Price',
@@ -190,7 +214,8 @@ def plot_stock_chart(df, symbol):
         xaxis_rangeslider_visible=False,
         height=600
     )
-    fig.layout.xaxis.type = 'category'
+    fig.update_xaxes(type='category', row=1, col=1)
+    fig.update_xaxes(type='category', row=2, col=1)
     return fig
 
 async def getdata(session, stock):
@@ -235,30 +260,13 @@ async def getdata(session, stock):
                 # Calculate net volume for each day
                 final_df['date'] = final_df.index.date
                 final_df['time'] = final_df.index.time
-                
-                # Initialize net volume column
-                final_df['net_volume'] = final_df['Volume']
-                
-                # For each day, calculate cumulative volume starting from 9:15
+                final_df['net volume'] = np.nan
                 for date in final_df['date'].unique():
                     day_mask = final_df['date'] == date
-                    day_data = final_df[day_mask].copy()
-                    
-                    # Find 9:15 AM candle
-                    nine_fifteen_mask = day_data['time'] == pd.Timestamp('09:15:00').time()
-                    nine_fifteen_candles = day_data[nine_fifteen_mask]
-                    
-                    if len(nine_fifteen_candles) > 0:
-                        # Get the first 9:15 candle index
-                        start_idx = nine_fifteen_candles.index[0]
-                        
-                        # Calculate cumulative volume from 9:15 onwards for this day
-                        day_data.loc[day_data.index >= start_idx, 'net_volume'] = \
-                            day_data.loc[day_data.index >= start_idx, 'Volume'].cumsum()
-                        
-                        # Update the main dataframe
-                        final_df.loc[day_mask, 'net_volume'] = day_data['net_volume']
-
+                    day_data = final_df.loc[day_mask, 'Volume']
+                    net_vol = day_data.diff()
+                    net_vol.iloc[0] = day_data.iloc[0]
+                    final_df.loc[day_mask, 'net volume'] = net_vol
                 # Drop temporary columns
                 final_df.drop(['date', 'time'], axis=1, inplace=True)
 
