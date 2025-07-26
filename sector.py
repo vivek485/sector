@@ -131,6 +131,33 @@ def plot_stock_chart(df, symbol):
     for x_val in nine_fifteen_times:
         fig.add_vline(x=x_val, line_width=1, line_dash="dot", line_color="white", row=1, col=1)
 
+    # Add triangle marker for 9:15 candle if open==low or open==high
+    marker_x = []
+    marker_y = []
+    marker_symbol = []
+    marker_color = []
+    for idx in nine_fifteen_times:
+        row = df.loc[idx]
+        if row['Open'] == row['Low']:
+            marker_x.append(idx)
+            marker_y.append(row['Open'])
+            marker_symbol.append('triangle-up')
+            marker_color.append('green')
+        elif row['Open'] == row['High']:
+            marker_x.append(idx)
+            marker_y.append(row['Open'])
+            marker_symbol.append('triangle-down')
+            marker_color.append('red')
+    if marker_x:
+        fig.add_trace(go.Scatter(
+            x=marker_x,
+            y=marker_y,
+            mode='markers',
+            marker=dict(symbol=marker_symbol, color=marker_color, size=16, line=dict(width=1, color='black')),
+            name='9:15 O=H/L',
+            showlegend=True
+        ), row=1, col=1)
+
     # Add previous day's high and low lines
    
 
