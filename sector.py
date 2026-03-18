@@ -61,8 +61,8 @@ if selectsec == 'fno':
 
 # Configuration
 CONFIG = {
-    'interval':5,
-    'dayback': 50,
+    'interval':1,
+    'dayback': 5,
     'timezone': 'Asia/Kolkata',
     'batch_size': 50,
     'semaphore_limit': 10
@@ -340,7 +340,7 @@ async def getdata(session, stock):
 
                 # Check for conditions
                
-                final_df=final_df.iloc[-120:]
+                final_df=final_df.iloc[-360:]
                 data_cache.set(cache_key, final_df)
                 return final_df
 
